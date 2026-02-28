@@ -1,0 +1,134 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// User model with role-based access (Doctor/Admin)
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("DOCTOR") // DOCTOR or ADMIN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  patients  Patient[] // Doctor's assigned patients
+  alerts    Alert[]   // Alerts acknowledged by this user
+}
+
+// Patient model
+model Patient {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  firstName       String
+  lastName        String
+  dateOfBirth     DateTime
+  gender          String   // MALE, FEMALE, OTHER
+  phone           String?
+  email           String?
+  address         String?
+  emergencyContact String?
+  medicalHistory  String?  // JSON string for medical history
+  allergies       String?  // JSON string for allergies
+  doctorId        String?  @db.ObjectId
+  doctor          User?    @relation(fields: [doctorId], references: [id])
+  vitals          Vitals[]
+  alerts          Alert[]
+  riskScore       Float?   @default(0)
+  riskLevel       String   @default("LOW") // LOW, MEDIUM, HIGH, CRITICAL
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isActive        Boolean  @default(true)
+}
+
+// Vitals model for tracking health metrics
+model Vitals {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId       String   @db.ObjectId
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  
+  // Core vital signs
+  heartRate       Float?   // beats per minute
+  bloodPressureSystolic Float?  // mmHg
+  bloodPressureDiastolic Float? // mmHg
+  temperature     Float?   // Celsius
+  oxygenSaturation Float?  // percentage (SpO2)
+  respiratoryRate Float?   // breaths per minute
+  bloodGlucose    Float?   // mg/dL
+  weight          Float?   // kg
+  height          Float?   // cm
+  
+  // Additional notes
+  notes           String?
+  
+  recordedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+}
+
+// Alert model for threshold violations
+model Alert {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId   String   @db.ObjectId
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  
+  type        String   // HEART_RATE, BLOOD_PRESSURE, TEMPERATURE, OXYGEN, GLUCOSE
+  severity    String   // LOW, MEDIUM, HIGH, CRITICAL
+  message     String
+  value       Float
+  threshold   Float
+  
+  status      String   @default("ACTIVE") // ACTIVE, ACKNOWLEDGED, RESOLVED
+  acknowledgedBy String? @db.ObjectId
+  acknowledgedAt DateTime?
+  acknowledgedUser User?  @relation(fields: [acknowledgedBy], references: [id])
+  
+  resolvedAt  DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// System settings for thresholds
+model SystemSettings {
+  id                          String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Heart rate thresholds
+  heartRateMinLow             Float    @default(50)
+  heartRateMinCritical        Float    @default(40)
+  heartRateMaxLow             Float    @default(100)
+  heartRateMaxCritical        Float    @default(120)
+  
+  // Blood pressure thresholds
+  bpSystolicMinLow            Float    @default(90)
+  bpSystolicMinCritical       Float    @default(80)
+  bpSystolicMaxLow            Float    @default(140)
+  bpSystolicMaxCritical       Float    @default(180)
+  bpDiastolicMinLow           Float    @default(60)
+  bpDiastolicMinCritical      Float    @default(50)
+  bpDiastolicMaxLow           Float    @default(90)
+  bpDiastolicMaxCritical      Float    @default(120)
+  
+  // Temperature thresholds
+  tempMinLow                  Float    @default(36.0)
+  tempMinCritical             Float    @default(35.0)
+  tempMaxLow                  Float    @default(38.0)
+  tempMaxCritical             Float    @default(40.0)
+  
+  // Oxygen saturation thresholds
+  oxygenMinLow                Float    @default(95)
+  oxygenMinCritical           Float    @default(90)
+  
+  // Blood glucose thresholds
+  glucoseMinLow               Float    @default(70)
+  glucoseMinCritical          Float    @default(50)
+  glucoseMaxLow               Float    @default(140)
+  glucoseMaxCritical          Float    @default(250)
+  
+  updatedAt                   DateTime @updatedAt
+}
